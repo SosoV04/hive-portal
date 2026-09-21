@@ -21,7 +21,8 @@ export interface BeeProps {
 }
 
 export function Bee({ size = 48, variant = 'static', className }: BeeProps) {
-  const clipId = useId()
+  // React's useId embeds ':' / '«»' — strip them so url(#id) stays a valid SVG reference.
+  const clipId = 'bee-' + useId().replace(/[^a-zA-Z0-9_-]/g, '')
   const flying = variant === 'flying'
 
   // Wings beat softly; ease-in-out, never bouncy.
