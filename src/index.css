@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Purdue HIVE — LOCKED DESIGN SYSTEM
+   These values are mirrored in tailwind.config.js. Do not deviate.
+   ========================================================================== */
+
+:root {
+  --gold: #cfb991; /* primary accent, Boilermaker Old Gold */
+  --gold-deep: #8e6f3e; /* hover states, depth, secondary accent */
+  --gold-soft: #ede3ce; /* backgrounds, subtle fills */
+  --black: #0f0f0f; /* text, structure, warm black — NOT pure #000 */
+  --ink: #2a2622; /* secondary text, warm dark brown-black */
+  --cream: #f7f4ec; /* page canvas */
+  --white: #ffffff; /* cards */
+  --success: #7a8b4f; /* muted olive-gold, milestones/wins */
+  --warning: #c25e3a; /* muted terracotta, alerts */
+  --border: #e5dfd1; /* soft borders, dividers */
+
+  /* Motion — no bouncy easing anywhere. */
+  --ease-hive: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-cream font-sans text-body text-black antialiased;
+    font-variation-settings: normal;
+  }
+
+  /* Display type is Fraunces, with the optical-size axis driven by size. */
+  h1,
+  h2 {
+    @apply font-display font-semibold text-black;
+    font-variation-settings: 'opsz' 96;
+  }
+
+  h3,
+  h4,
+  h5,
+  h6 {
+    @apply font-sans font-semibold text-black;
+  }
+
+  ::selection {
+    background-color: var(--gold);
+    color: var(--black);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--gold-deep);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Container: 1240px max, 24px gutters on mobile, 48px on desktop. */
+  .container-hive {
+    @apply mx-auto w-full max-w-container px-6 md:px-12;
+  }
+
+  /* Vertical section rhythm: py-16 mobile, py-24 desktop. */
+  .section-rhythm {
+    @apply py-16 md:py-24;
+  }
+
+  /* Standard card chrome. */
+  .card-hive {
+    @apply rounded-2xl border border-border bg-white shadow-sm;
+  }
+}
+
+@layer utilities {
+  /* Fraunces optical-size helpers for hero-scale copy. */
+  .opsz-display {
+    font-variation-settings: 'opsz' 144;
+  }
+
+  .opsz-text {
+    font-variation-settings: 'opsz' 14;
+  }
+
+  /* Marquee pauses on hover (partner logo strip). */
+  .marquee-track:hover {
+    animation-play-state: paused;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .marquee-track {
+      animation: none;
+    }
+  }
+}
