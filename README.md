@@ -120,6 +120,18 @@ Use `<Bee>` (`size`, `variant: 'static' | 'flying'`).
 
 ---
 
+## Content still to fill in
+
+Two things in this scaffold are deliberately blank and need real values:
+
+1. **Footer external links** — the Programs column (BuildPurdue, Anvil, Purdue Innovates)
+   and the Follow column (LinkedIn, Instagram) are `#` placeholders in
+   [`src/components/Footer.tsx`](src/components/Footer.tsx). They were left blank rather than
+   guessed, so a wrong link never ships.
+2. Everything in `src/data/mock/` except `tracks.ts`, which is locked and complete.
+
+---
+
 ## Structure
 
 ```
@@ -129,8 +141,8 @@ src/
   index.css                Tailwind directives + CSS custom properties
   components/
     Layout.tsx             Nav + main + Footer wrapper
-    Nav.tsx                Home · Board · Schedule · Resources · Directory
-    Footer.tsx             Guidelines · Feedback · Supplies · Space
+    Nav.tsx                HIVE wordmark + Home · Board · Schedule · Resources · Directory
+    Footer.tsx             4 columns: Space · Programs · Follow · Contact
     Hex.tsx                Hexagon primitive (strict rules above)
     Bee.tsx                Bee primitive (strict rules above)
     Button.tsx             Primary + secondary
@@ -145,7 +157,7 @@ src/
     ResourceTrack.tsx      prompt 5 — individual track
     Directory.tsx          prompt 6
     Space.tsx              prompt 7 — guidelines + supplies + feedback
-  data/mock/               typed mock data, mostly empty until later prompts
+  data/mock/               typed mock data; tracks.ts is populated, rest fill in later prompts
   lib/cn.ts                className merge helper
 ```
 

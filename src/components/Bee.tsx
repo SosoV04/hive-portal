@@ -49,33 +49,19 @@ export function Bee({ size = 48, variant = 'static', className }: BeeProps) {
         </clipPath>
       </defs>
 
-      {/* wings */}
-      <motion.ellipse
-        cx="8.6"
-        cy="13.6"
-        rx="4.8"
-        ry="3.2"
-        transform="rotate(-28 8.6 13.6)"
-        fill="var(--white)"
-        fillOpacity="0.85"
-        stroke="var(--gold-deep)"
-        strokeWidth="0.9"
-        style={{ originX: '8.6px', originY: '15px' }}
-        {...wing}
-      />
-      <motion.ellipse
-        cx="23.4"
-        cy="13.6"
-        rx="4.8"
-        ry="3.2"
-        transform="rotate(28 23.4 13.6)"
-        fill="var(--white)"
-        fillOpacity="0.85"
-        stroke="var(--gold-deep)"
-        strokeWidth="0.9"
-        style={{ originX: '23.4px', originY: '15px' }}
-        {...wing}
-      />
+      {/*
+        Wings sit behind the body and overlap the shoulders, so the body edge
+        crops them and they read as attached rather than floating.
+        The rotation stays on plain <ellipse> transform attributes — putting it
+        on a motion element lets framer-motion's own transform handling
+        overwrite it — and the flutter is driven on their shared group.
+      */}
+      <motion.g style={{ originX: '16px', originY: '16px' }} {...wing}>
+        <g fill="var(--white)" fillOpacity="0.8" stroke="var(--gold-deep)" strokeWidth="0.9">
+          <ellipse cx="10.5" cy="15" rx="5.8" ry="3.2" transform="rotate(-32 10.5 15)" />
+          <ellipse cx="21.5" cy="15" rx="5.8" ry="3.2" transform="rotate(32 21.5 15)" />
+        </g>
+      </motion.g>
 
       {/* antennae */}
       <g stroke="var(--black)" strokeWidth="1.3" strokeLinecap="round">
