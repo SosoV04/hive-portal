@@ -167,6 +167,7 @@ export default function Home() {
           viewBox={`0 0 ${dims.w} ${dims.h}`}
           fill="none"
           aria-hidden="true"
+          data-flight-path=""
         >
           {/* Faint full-length guide, so the curve reads as a route. */}
           <path

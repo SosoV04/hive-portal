@@ -41,6 +41,7 @@ export function Bee({ size = 48, variant = 'static', className }: BeeProps) {
       fill="none"
       role="img"
       aria-label="Bee"
+      data-bee=""
       className={cn('overflow-visible', className)}
     >
       <defs>

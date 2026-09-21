@@ -47,6 +47,7 @@ export function Hex({
 
   return (
     <div
+      data-hex=""
       className={cn(
         'group relative shrink-0 transition-transform duration-200 ease-out hover:scale-[1.03]',
         className,

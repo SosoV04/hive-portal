@@ -20,6 +20,7 @@ npm run dev      # dev server at http://localhost:5173/hive-portal/
 npm run build    # type-check + production build into dist/
 npm run preview  # serve the production build locally
 npm run lint     # oxlint
+npm run test:e2e # Playwright end-to-end suite (starts the dev server itself)
 ```
 
 > The dev server is served under `/hive-portal/` because `base` in `vite.config.ts` is set for
@@ -35,6 +36,57 @@ Pushing to `main` triggers `.github/workflows/deploy.yml`, which builds the site
 links (e.g. `/hive-portal/directory`) resolve instead of 404ing.
 
 Pages must be set to **Build and deployment → Source: GitHub Actions** in repo settings.
+
+---
+
+## Testing
+
+```bash
+npm run test:e2e          # run everything
+npm run test:e2e:ui       # interactive runner, good for debugging a single spec
+npm run test:e2e:report   # open the HTML report from the last run
+npx playwright test home  # run one spec by filename fragment
+```
+
+Playwright starts the dev server itself — nothing to run first. It drives the
+**Microsoft Edge already installed on the machine** via `channel`, so
+`npm install` never pulls a ~150MB browser. If Edge is missing:
+
+```bash
+E2E_CHANNEL=chrome npm run test:e2e        # use installed Chrome instead
+npx playwright install chromium            # or fetch the bundled browser
+E2E_CHANNEL= npm run test:e2e              # ...and use that
+```
+
+### What the suite covers
+
+| Spec | Guards |
+| --- | --- |
+| `design-system.spec.ts` | All ten tokens on `:root`, Fraunces/Inter assignment, type scale, container and gutters, nav and footer chrome, card and button shape |
+| `navigation.spec.ts` | Every route renders, exactly one active nav item, gold underline, mobile drawer (full-screen, scroll lock, Escape, navigate-and-close) |
+| `primitives.spec.ts` | `<Hex>` geometry at 4 sizes × 3 variants, hover state, `<Bee>` anatomy and wing attachment |
+| `strict-rules.spec.ts` | The locked hex and bee placement rules, enforced per route |
+| `home-flight-path.spec.ts` | Bee travels top-right to bottom-left, stays on screen, trail draws monotonically, path clears centred copy, reduced-motion |
+| `resources.spec.ts` | All ten tracks render with icons and route to detail pages |
+
+### Two things worth knowing
+
+**Screenshots are captured on every run,** not only on failure, into
+`tests/e2e/screenshots/` (gitignored). That is deliberate: the bugs this
+harness has caught — detached SVG wings, a heading inheriting the wrong font, a
+flight path crossing a headline, a dropped font-size utility — were all visible
+in a render while every assertion passed. Look at them after a green run.
+
+**The strict hex/bee rules are machine-checked.** `<Hex>`, `<Bee>`,
+`<EmptyState>` and the flight-path SVG carry `data-hex`, `data-bee`,
+`data-empty-state` and `data-flight-path`. `strict-rules.spec.ts` asserts every
+bee sits inside an empty state or the flight path, and that neither primitive
+appears in the nav or footer — so a later prompt cannot quietly add decoration
+the design system forbids.
+
+CI type-checks the suite (`tsc -b` covers `tests/`) but does not run it, since
+the Ubuntu runner has no Edge. To run e2e in CI, add a job that does
+`npx playwright install --with-deps chromium` and sets `E2E_CHANNEL=`.
 
 ---
 
@@ -158,7 +210,10 @@ src/
     Directory.tsx          prompt 6
     Space.tsx              prompt 7 — guidelines + supplies + feedback
   data/mock/               typed mock data; tracks.ts is populated, rest fill in later prompts
-  lib/cn.ts                className merge helper
+  lib/cn.ts                className merge helper (teaches tailwind-merge our type scale)
+tests/
+  e2e/                     Playwright specs + helpers
+  probe/                   dev-only component probe page, never built into dist
 ```
 
 ### Routes
