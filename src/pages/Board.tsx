@@ -141,7 +141,11 @@ export default function Board() {
           */}
           <motion.div
             key={view}
-            initial={{ opacity: 0, scale: 0.98 }}
+            // `initial={false}` under reduced motion, not just duration 0: a
+            // zero-length animation still paints one frame of the initial
+            // state, and one frame at opacity 0 is a flash, not an instant
+            // swap. Starting from the target values skips it.
+            initial={reduceMotion ? false : { opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: reduceMotion ? 0 : 0.3, ease: EASE_HIVE }}
           >
