@@ -15,7 +15,42 @@ import { BoardPreview } from '../components/home/BoardPreview'
 import { Marquee } from '../components/home/Marquee'
 import { QuickLinks } from '../components/home/QuickLinks'
 
-const BEE_SIZE = 54
+const BEE_SIZE = 34
+
+/**
+ * Horizontal reach of the weave, in px. The desktop gutter is ~148px wide and
+ * the bee flies down its centre line, so 40px each way stays clear of both the
+ * page edge and the first pixel of container content.
+ */
+const WEAVE_AMPLITUDE = { desktop: 40, mobile: 24 }
+const WEAVE_BREAKPOINT = 768
+
+/** Full sine oscillations between one waypoint and the next. */
+const WEAVE_OSCILLATIONS = 1.5
+
+/**
+ * Waypoint gaps shorter than this get proportionally less amplitude. The
+ * crossing bands between two sections are only ~80px tall, and a full-width
+ * weave across one reads as a scribble rather than a flight.
+ */
+const WEAVE_FULL_SPAN = 260
+
+/** Target spacing, in px, between samples when flattening the curve. */
+const WEAVE_SAMPLE_PX = 5
+
+/**
+ * The bee never pitches past this. The route descends far more than it
+ * wanders, so the raw tangent is close to straight down almost everywhere —
+ * unclamped it would fly nose-first into the footer.
+ */
+const MAX_TILT = 20
+
+/** Arc length either side of the bee used to read the path's heading. */
+const TANGENT_SPAN = 10
+
+/** Idle hover: amplitude in px and period in seconds. */
+const BOB_PX = 3
+const BOB_S = 2.4
 
 /**
  * Which side gutter the bee holds over each section.
@@ -132,26 +167,75 @@ function flightPathWaypoints(layout: Layout): Point[] {
   return points
 }
 
+function cubicAt(p0: number, p1: number, p2: number, p3: number, t: number) {
+  const m = 1 - t
+  return m * m * m * p0 + 3 * m * m * t * p1 + 3 * m * t * t * p2 + t * t * t * p3
+}
+
+/**
+ * Sideways displacement of the weave at a given y.
+ *
+ * It is pinned to zero at every waypoint, so the route still threads the
+ * gutters those waypoints were measured for — the weave rides on the spline
+ * rather than replacing it. The sin(pi*u) envelope flattens the slope to zero
+ * there too, which is what keeps each pass-through smooth instead of
+ * cornering, and lets neighbouring gaps carry different amplitudes without
+ * showing a seam.
+ */
+function weaveOffset(y: number, anchors: number[], amplitude: number) {
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const top = anchors[i]
+    const bottom = anchors[i + 1]
+    if (y < top || y > bottom) continue
+    const span = bottom - top
+    if (span <= 0) return 0
+    const u = (y - top) / span
+    const envelope = Math.sin(Math.PI * u)
+    const taper = Math.min(1, span / WEAVE_FULL_SPAN)
+    return amplitude * taper * envelope * Math.sin(2 * Math.PI * WEAVE_OSCILLATIONS * u)
+  }
+  return 0
+}
+
 /**
  * A cubic spline through the waypoints whose control points differ from their
- * anchors only vertically. That guarantees y increases monotonically along the
- * curve, which is what lets buildYLookup index the path by vertical position.
+ * anchors only vertically, flattened to a polyline and woven sideways.
+ *
+ * The vertical-only control points guarantee y increases monotonically along
+ * the curve, which is what lets buildYLookup index the path by vertical
+ * position; the weave only ever displaces x, so that property survives it.
+ * Sampling is proportional to each gap's height rather than a fixed step
+ * count, because the short crossing bands carry the tightest oscillation and
+ * would otherwise come out visibly faceted.
  */
 function buildFlightPath(layout: Layout) {
   const points = flightPathWaypoints(layout)
   if (points.length < 2) return ''
 
+  const amplitude =
+    layout.w >= WEAVE_BREAKPOINT ? WEAVE_AMPLITUDE.desktop : WEAVE_AMPLITUDE.mobile
+  const anchors = points.map((point) => point.y)
   const n = (v: number) => +v.toFixed(2)
-  const segments = [`M ${n(points[0].x)} ${n(points[0].y)}`]
+
+  const out: string[] = []
+  const push = (x: number, y: number) =>
+    out.push(`${n(x + weaveOffset(y, anchors, amplitude))} ${n(y)}`)
+
+  push(points[0].x, points[0].y)
   for (let i = 1; i < points.length; i++) {
     const from = points[i - 1]
     const to = points[i]
     const lift = (to.y - from.y) * 0.45
-    segments.push(
-      `C ${n(from.x)} ${n(from.y + lift)}, ${n(to.x)} ${n(to.y - lift)}, ${n(to.x)} ${n(to.y)}`,
-    )
+    const steps = Math.max(8, Math.min(240, Math.round((to.y - from.y) / WEAVE_SAMPLE_PX)))
+    for (let step = 1; step <= steps; step++) {
+      const t = step / steps
+      push(
+        cubicAt(from.x, from.x, to.x, to.x, t),
+        cubicAt(from.y, from.y + lift, to.y - lift, to.y, t),
+      )
+    }
   }
-  return segments.join(' ')
+  return `M ${out[0]} L ${out.slice(1).join(' L ')}`
 }
 
 interface YLookup {
@@ -273,6 +357,12 @@ export default function Home() {
   const beeRotate = useMotionValue(0)
   const trail = useMotionValue(0)
 
+  // Which way the bee faces. Held in state rather than a motion value because
+  // it swaps the artwork, but it only changes when the weave reverses — a
+  // handful of re-renders across the whole scroll, not one per frame.
+  const [facing, setFacing] = useState<'left' | 'right'>('right')
+  const facingRef = useRef<'left' | 'right'>('right')
+
   const d = hasGutter(layout) ? buildFlightPath(layout) : ''
 
   const placeBee = useCallback(
@@ -286,11 +376,27 @@ export default function Home() {
       const at = lengthAtY(lut, targetY)
 
       const point = path.getPointAtLength(at)
-      const ahead = path.getPointAtLength(Math.min(at + 1, lut.total))
+      // Read the heading across a span rather than off a single polyline facet.
+      const back = path.getPointAtLength(Math.max(at - TANGENT_SPAN, 0))
+      const ahead = path.getPointAtLength(Math.min(at + TANGENT_SPAN, lut.total))
+      const dx = ahead.x - back.x
+      const dy = ahead.y - back.y
+
       beeX.set(point.x)
       beeY.set(point.y)
-      // The bee artwork points up, so its heading is the tangent plus 90 degrees.
-      beeRotate.set((Math.atan2(ahead.y - point.y, ahead.x - point.x) * 180) / Math.PI + 90)
+
+      // The artwork flies horizontally, so the bee mirrors to face its travel
+      // direction and only pitches by the descent angle. Clamping that pitch is
+      // what stops a near-vertical stretch of the weave reading as a dive.
+      const next = dx >= 0 ? 'right' : 'left'
+      if (next !== facingRef.current) {
+        facingRef.current = next
+        setFacing(next)
+      }
+      const pitch = (Math.atan2(dy, Math.abs(dx)) * 180) / Math.PI
+      const clampedPitch = Math.min(Math.max(pitch, -MAX_TILT), MAX_TILT)
+      beeRotate.set(next === 'right' ? clampedPitch : -clampedPitch)
+
       trail.set(at / lut.total)
     },
     [beeRotate, beeX, beeY, trail],
@@ -326,21 +432,41 @@ export default function Home() {
             strokeOpacity={0.18}
             strokeWidth={2}
             strokeLinecap="round"
-            strokeDasharray="2 10"
+            strokeDasharray="2 6"
           />
-          {/* The trail the bee has actually flown. */}
+          {/* The trail the bee has actually flown — flight dust, not stitching. */}
           <motion.path
             ref={pathRef}
             d={d}
             stroke="var(--gold-deep)"
+            strokeOpacity={0.35}
             strokeWidth={2}
             strokeLinecap="round"
             style={{ pathLength: reduceMotion ? 1 : trail }}
           />
           <motion.g style={{ x: beeX, y: beeY, rotate: beeRotate }}>
-            <g transform={`translate(${-BEE_SIZE / 2}, ${-BEE_SIZE / 2})`}>
-              <Bee size={BEE_SIZE} variant={reduceMotion ? 'static' : 'flying'} />
-            </g>
+            {/*
+              The idle hover sits on its own group so the outer transform stays
+              purely scroll-driven. Under reduced motion it collapses to a plain
+              <g> — no residual transform for the bee to sit on.
+            */}
+            {reduceMotion ? (
+              <g data-bee-bob="">
+                <g transform={`translate(${-BEE_SIZE / 2}, ${-BEE_SIZE / 2})`}>
+                  <Bee size={BEE_SIZE} variant="static" direction={facing} />
+                </g>
+              </g>
+            ) : (
+              <motion.g
+                data-bee-bob=""
+                animate={{ y: [-BOB_PX, BOB_PX, -BOB_PX] }}
+                transition={{ duration: BOB_S, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <g transform={`translate(${-BEE_SIZE / 2}, ${-BEE_SIZE / 2})`}>
+                  <Bee size={BEE_SIZE} variant="flying" direction={facing} />
+                </g>
+              </motion.g>
+            )}
           </motion.g>
         </svg>
       ) : null}

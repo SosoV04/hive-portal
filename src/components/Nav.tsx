@@ -20,7 +20,9 @@ function Wordmark({ onClick }: { onClick?: () => void }) {
       to="/"
       onClick={onClick}
       aria-label="Purdue HIVE — home"
-      className="font-display text-[1.6rem] font-black leading-none tracking-[-0.02em] text-black"
+      // Space Grotesk needs the tight tracking to read as one structural
+      // unit; at default spacing the narrow I opens a gap and it says "H IVE".
+      className="font-wordmark text-2xl font-bold leading-none tracking-[-0.04em] text-black"
     >
       HIVE
     </Link>

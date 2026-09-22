@@ -782,3 +782,235 @@ test.describe('Home — visual baseline', () => {
     await shot(page, 'home/mobile-full', { fullPage: true })
   })
 })
+
+/**
+ * Bee realism and the wordmark.
+ *
+ * The flight path already had assertions for where the bee goes; these are
+ * about what it looks like on the way — that it is drawn in perspective, that
+ * the weave is actually displacing it, and that it turns to face its travel.
+ */
+
+/** translateX / translateY / rotation of the scroll-driven bee group. */
+async function beeTransform(page: Page) {
+  return page.evaluate(() => {
+    const svg = document.querySelector('[data-flight-path]')!
+    const group = svg.querySelector('g') as SVGElement
+    const m = new DOMMatrixReadOnly(getComputedStyle(group).transform)
+    const svgBox = svg.getBoundingClientRect()
+
+    // The gutter centre lines the waypoints were measured onto.
+    const container = svg.parentElement!.querySelector('.container-hive')!
+    const inset =
+      container.getBoundingClientRect().left + parseFloat(getComputedStyle(container).paddingLeft)
+    const left = inset / 2
+    const right = svgBox.width - inset / 2
+    const waypoint = Math.abs(m.e - left) < Math.abs(m.e - right) ? left : right
+
+    return {
+      x: m.e,
+      y: m.f,
+      angle: (Math.atan2(m.b, m.a) * 180) / Math.PI,
+      offsetFromWaypoint: m.e - waypoint,
+      facing: document.querySelector('[data-bee]')!.getAttribute('data-direction'),
+      width: svgBox.width,
+    }
+  })
+}
+
+test.describe('Home — bee realism', () => {
+  test('the bee is drawn in 3/4 perspective, not as a flat specimen', async ({ page }) => {
+    await goto(page, '/')
+
+    const bee = await page.locator('[data-bee]').first().evaluate((svg) => {
+      const wing = (side: string) =>
+        svg.querySelector(`[data-bee-wing="${side}"] ellipse`) as SVGEllipseElement
+      const membrane = (el: SVGEllipseElement) => {
+        const cs = getComputedStyle(el)
+        return {
+          rx: parseFloat(el.getAttribute('rx')!),
+          ry: parseFloat(el.getAttribute('ry')!),
+          fillOpacity: parseFloat(cs.fillOpacity),
+          strokeWidth: parseFloat(cs.strokeWidth),
+          stroke: cs.stroke,
+        }
+      }
+      return {
+        wingCount: svg.querySelectorAll('[data-bee-wing] ellipse').length,
+        near: membrane(wing('near')),
+        far: membrane(wing('far')),
+        bodyTransform: svg.querySelector('[data-bee-body]')!.getAttribute('transform') ?? '',
+        veins: svg.querySelectorAll('[data-bee-wing] path').length,
+        legs: svg.querySelectorAll('[data-bee-legs] path').length,
+      }
+    })
+
+    // Two wings, each a translucent membrane with a drawn edge.
+    expect(bee.wingCount).toBe(2)
+    for (const w of [bee.near, bee.far]) {
+      expect(w.fillOpacity).toBeCloseTo(0.35, 2)
+      expect(w.strokeWidth).toBeGreaterThan(0)
+      expect(w.stroke).not.toBe('none')
+    }
+
+    // The near wing is larger; the far one is shorter and foreshortened. That
+    // asymmetry is what carries the perspective — a mirrored pair reads flat.
+    expect(bee.near.rx).toBeGreaterThan(bee.far.rx)
+    expect(bee.near.ry).toBeGreaterThan(bee.far.ry)
+
+    // The body sits on its own axis rather than square to the frame.
+    expect(bee.bodyTransform).toMatch(/rotate\(-?1[0-9]/)
+
+    expect(bee.veins).toBe(4) // two per wing
+    expect(bee.legs).toBe(3)
+  })
+
+  test('the weave displaces the bee from its waypoint without clipping', async ({ page }) => {
+    await goto(page, '/')
+
+    const offsets: number[] = []
+    for (const fraction of [0.25, 0.5, 0.75]) {
+      await scrollToFraction(page, fraction)
+      offsets.push((await beeTransform(page)).offsetFromWaypoint)
+    }
+
+    // The weave reaches 40px each way and is pinned to zero at every waypoint,
+    // so a depth that happens to land on one legitimately reads near zero —
+    // what must hold is that none of them is clipped past the amplitude, and
+    // that the wave is doing real work somewhere across the three.
+    for (const [i, offset] of offsets.entries()) {
+      expect(
+        Math.abs(offset),
+        `weave clipped at scroll step ${i}: ${offsets.map((o) => o.toFixed(1)).join(', ')}`,
+      ).toBeLessThanOrEqual(41)
+    }
+    expect(
+      Math.max(...offsets.map(Math.abs)),
+      `weave is flat: ${offsets.map((o) => o.toFixed(1)).join(', ')}`,
+    ).toBeGreaterThan(10)
+  })
+
+  test('the bee turns to face the way it is travelling', async ({ page }) => {
+    await goto(page, '/')
+
+    const samples: { angle: number; facing: string | null }[] = []
+    for (const fraction of [0.25, 0.5, 0.75]) {
+      await scrollToFraction(page, fraction)
+      const { angle, facing } = await beeTransform(page)
+      samples.push({ angle: Math.round(angle), facing })
+    }
+
+    // The heading is live, not a constant.
+    expect(
+      new Set(samples.map((s) => s.angle)).size,
+      `heading never changed: ${samples.map((s) => s.angle).join(', ')}`,
+    ).toBeGreaterThan(1)
+
+    for (const { angle, facing } of samples) {
+      // Clamped, so the bee never reads as flying sideways or diving.
+      expect(Math.abs(angle)).toBeLessThanOrEqual(20)
+      // The artwork mirrors to match the sign of the turn.
+      if (Math.abs(angle) > 1) expect(facing).toBe(angle >= 0 ? 'right' : 'left')
+    }
+  })
+
+  test('reduced motion stills the wings and the hover, but still flies the scroll', async ({
+    page,
+  }) => {
+    await withReducedMotion(page, async () => {
+      await goto(page, '/')
+      await scrollToFraction(page, 0.5)
+
+      const readMotion = () =>
+        page.evaluate(() => ({
+          // framer-motion writes its animated values to inline style, so an
+          // empty string here means nothing is being driven at all.
+          beats: [...document.querySelectorAll('[data-bee-beat]')].map(
+            (g) => (g as SVGElement).style.transform,
+          ),
+          bob: (document.querySelector('[data-bee-bob]') as SVGElement).style.transform,
+        }))
+
+      const first = await readMotion()
+      // Longer than a full 0.7s wingbeat and a quarter of the 2.4s hover, so a
+      // running animation could not land back on the same values by chance.
+      await page.waitForTimeout(900)
+      const second = await readMotion()
+
+      expect(first.beats).toEqual(['', ''])
+      expect(second.beats).toEqual(['', ''])
+      expect(first.bob).toBe('')
+      expect(second.bob).toBe('')
+
+      // The bee is still placed by scroll, and still out in a gutter.
+      const at50 = await beeTransform(page)
+      const ratio = at50.x / at50.width
+      expect(ratio < 0.3 || ratio > 0.7, `bee at ${(ratio * 100).toFixed(1)}% width`).toBe(true)
+
+      await scrollToFraction(page, 0.85)
+      const at85 = await beeTransform(page)
+      expect(at85.y).toBeGreaterThan(at50.y)
+    })
+  })
+})
+
+test.describe('Nav — wordmark', () => {
+  for (const viewport of ['desktop', 'mobile'] as const) {
+    test(`is Space Grotesk, tightly tracked, at ${viewport}`, async ({ page }) => {
+      await goto(page, '/')
+      await useViewport(page, viewport)
+
+      const mark = page.locator('header a', { hasText: 'HIVE' }).first()
+      const style = await mark.evaluate((el) => {
+        const cs = getComputedStyle(el)
+        return {
+          family: cs.fontFamily,
+          weight: cs.fontWeight,
+          size: parseFloat(cs.fontSize),
+          tracking: parseFloat(cs.letterSpacing),
+        }
+      })
+
+      expect(style.family).toContain('Space Grotesk')
+      expect(style.weight).toBe('700')
+      expect(style.size).toBeCloseTo(24, 0)
+
+      // Negative, and by at least -0.04em: at default spacing Space Grotesk's
+      // narrow I opens a gap and the mark reads "H IVE".
+      expect(style.tracking).toBeLessThan(0)
+      expect(style.tracking).toBeLessThanOrEqual(-0.04 * style.size + 0.01)
+    })
+  }
+})
+
+test.describe('Home — bee and wordmark baselines', () => {
+  test('hero and wins captures carry both the bee and the wordmark', async ({ page }) => {
+    await goto(page, '/')
+
+    for (const section of ['hero', 'wins'] as const) {
+      await page.evaluate((id) => {
+        document
+          .querySelector(`[data-section="${id}"]`)!
+          .scrollIntoView({ block: 'center', behavior: 'instant' as ScrollBehavior })
+      }, section)
+      await page.waitForTimeout(SETTLE_MS)
+
+      const visible = await page.evaluate(() => {
+        const onScreen = (r?: DOMRect) =>
+          !!r && r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth
+        const mark = [...document.querySelectorAll('header a')].find(
+          (a) => a.textContent?.trim() === 'HIVE',
+        )
+        return {
+          bee: onScreen(document.querySelector('[data-bee]')?.getBoundingClientRect()),
+          mark: onScreen(mark?.getBoundingClientRect()),
+        }
+      })
+
+      expect(visible.bee, `bee off-screen for the ${section} capture`).toBe(true)
+      expect(visible.mark, `wordmark off-screen for the ${section} capture`).toBe(true)
+
+      await shot(page, `home/${section}`)
+    }
+  })
+})

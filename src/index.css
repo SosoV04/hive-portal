@@ -23,6 +23,16 @@
   --ease-hive: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/*
+ * Type: three faces, each with exactly one job.
+ *   Fraunces      — display (h1/h2, pull quotes). Optical size axis driven by size.
+ *   Inter         — everything else: body, labels, nav links, h3-h6.
+ *   Space Grotesk — the HIVE wordmark in the nav, and nothing else. Loaded at
+ *                   700 only; it is four letters, not a third body face.
+ * Loaded in index.html, mapped to font-display / font-sans / font-wordmark in
+ * tailwind.config.js.
+ */
+
 @layer base {
   html {
     scroll-behavior: smooth;

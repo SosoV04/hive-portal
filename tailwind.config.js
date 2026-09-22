@@ -21,6 +21,8 @@ export default {
       fontFamily: {
         display: ['Fraunces', 'Georgia', 'serif'],
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        // Wordmark only — never body or headings. See Nav's <Wordmark>.
+        wordmark: ['"Space Grotesk"', 'sans-serif'],
       },
       fontSize: {
         'display-xl': ['clamp(3.5rem, 7vw, 6rem)', { lineHeight: '0.95', letterSpacing: '-0.02em' }],
