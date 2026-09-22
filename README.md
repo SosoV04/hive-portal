@@ -66,13 +66,13 @@ E2E_CHANNEL= npm run test:e2e              # ...and use that
 | `navigation.spec.ts` | Every route renders, exactly one active nav item, gold underline, mobile drawer (full-screen, scroll lock, Escape, navigate-and-close) |
 | `primitives.spec.ts` | `<Hex>` geometry at 4 sizes × 3 variants, hover state, `<Bee>` anatomy and wing attachment |
 | `strict-rules.spec.ts` | The locked hex and bee placement rules, enforced per route |
-| `home-flight-path.spec.ts` | Bee travels top-right to bottom-left, stays on screen, trail draws monotonically, path clears centred copy, reduced-motion |
+| `home.spec.ts` | All six Home sections in order, hero content matches `spotlight.ts`, wins scroll-snap and chevrons, next-3 events chronological, newest board post per column, partner marquee (12 partners, duplicated, reduced-motion), quick-link anchors, keyboard reachability, and the bee flight-path (travels top-right to bottom-left, stays on screen, trail draws monotonically, clears centred copy) |
 | `resources.spec.ts` | All ten tracks render with icons and route to detail pages |
 
 ### Two things worth knowing
 
 **Screenshots are captured on every run,** not only on failure, into
-`tests/e2e/screenshots/` (gitignored). That is deliberate: the bugs this
+`tests/__screenshots__/` (committed, one folder per page). That is deliberate: the bugs this
 harness has caught — detached SVG wings, a heading inheriting the wrong font, a
 flight path crossing a headline, a dropped font-size utility — were all visible
 in a render while every assertion passed. Look at them after a green run.
@@ -87,6 +87,21 @@ the design system forbids.
 CI type-checks the suite (`tsc -b` covers `tests/`) but does not run it, since
 the Ubuntu runner has no Edge. To run e2e in CI, add a job that does
 `npx playwright install --with-deps chromium` and sets `E2E_CHANNEL=`.
+
+---
+
+## Known behaviors
+
+Things that look like bugs, are not, and should not be "fixed":
+
+**GitHub Pages returns HTTP 404 for deep links, while the page renders correctly.**
+Visit `/hive-portal/directory` directly and the network response is `404 Not Found`, but the app
+appears and works. Pages has no server-side rewrite, so any path that is not a real file misses;
+the deploy workflow copies `index.html` to `404.html`, and Pages serves that body with the 404
+status. React Router then reads the URL and hydrates the right route. The status code is
+cosmetic — it shows up in DevTools and in `curl -I`, and it does not affect rendering,
+navigation, or the user. Fixing it properly means moving off Pages or switching to hash routing,
+neither of which is worth it.
 
 ---
 
@@ -176,11 +191,14 @@ Use `<Bee>` (`size`, `variant: 'static' | 'flying'`).
 
 Two things in this scaffold are deliberately blank and need real values:
 
-1. **Footer external links** — the Programs column (BuildPurdue, Anvil, Purdue Innovates)
-   and the Follow column (LinkedIn, Instagram) are `#` placeholders in
-   [`src/components/Footer.tsx`](src/components/Footer.tsx). They were left blank rather than
-   guessed, so a wrong link never ships.
-2. Everything in `src/data/mock/` except `tracks.ts`, which is locked and complete.
+1. **Instagram handle** — still a `#` placeholder in
+   [`src/components/Footer.tsx`](src/components/Footer.tsx), marked with a TODO. Left blank
+   rather than guessed, so a wrong link never ships.
+2. **The Anvil URL** points at `various-windows-489781-de8bd8574.framer.app`, which looks like
+   an unclaimed Framer subdomain rather than a final address. Also marked with a TODO.
+3. Everything in `src/data/mock/` except `tracks.ts` (locked and complete) and the five files
+   populated for the Home page — `spotlight.ts`, `wins.ts`, `events.ts`, `board-posts.ts`,
+   `partners.ts` — which hold invented-but-plausible placeholder content awaiting real copy.
 
 ---
 
@@ -201,18 +219,29 @@ src/
     Card.tsx               Standard content card
     SectionEyebrow.tsx     Uppercase gold section label
     EmptyState.tsx         Uses <Bee> — "the hive is quiet"
+    Reveal.tsx             The one sanctioned section reveal (12px + fade, once)
+    shared/                Reused across pages — pull from here, do not re-build
+      EventCard.tsx        Home "Next up" + Schedule
+      EventTypeBar.tsx     4px type strip: internal · cross-campus · external
+      BoardPostCard.tsx    Home board preview + Board
+      ColumnDot.tsx        Board column colour key
+    home/                  Home-only sections, composed by pages/Home.tsx
+      Hero.tsx  WinsStrip.tsx  NextUp.tsx  BoardPreview.tsx  Marquee.tsx  QuickLinks.tsx
   pages/
-    Home.tsx               prompt 2
+    Home.tsx               prompt 2 — composes components/home/* + the bee flight path
     Board.tsx              prompt 3
     Schedule.tsx           prompt 4
     Resources.tsx          prompt 5 — track landing
     ResourceTrack.tsx      prompt 5 — individual track
     Directory.tsx          prompt 6
     Space.tsx              prompt 7 — guidelines + supplies + feedback
-  data/mock/               typed mock data; tracks.ts is populated, rest fill in later prompts
+  data/mock/               typed mock data; tracks + the five Home files are populated
   lib/cn.ts                className merge helper (teaches tailwind-merge our type scale)
+  lib/dates.ts             mock timestamps as offsets from now, + display formatters
 tests/
-  e2e/                     Playwright specs + helpers
+  <page-name>.spec.ts      one spec per page — home.spec.ts, resources.spec.ts, …
+  lib/                     shared helpers: tokens, viewport, motion-safe waits, DOM
+  __screenshots__/         committed visual baselines, one folder per page
   probe/                   dev-only component probe page, never built into dist
 ```
 
@@ -228,4 +257,12 @@ tests/
 | `/directory`            | Directory       |
 | `/space`                | Space           |
 
-`/space` anchors: `#guidelines`, `#supplies`, `#feedback`.
+`/space` anchors: `#space-info`, `#guidelines`, `#supplies`, `#feedback`.
+
+### Mock data and time
+
+Every mock timestamp in `src/data/mock/` is an offset from the moment the module loads
+(`src/lib/dates.ts`), not a literal date. Wins stay inside their "last three weeks" window and
+the Schedule stays in the future whenever someone opens the portal, instead of decaying into a
+dead demo next semester. `events.ts` is sorted chronologically at module load, so index order is
+always calendar order.

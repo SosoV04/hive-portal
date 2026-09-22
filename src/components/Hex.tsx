@@ -20,7 +20,11 @@ const HEX_RATIO = 0.8660254
 export type HexVariant = 'filled' | 'outline' | 'photo'
 
 export interface HexProps {
-  /** Width in pixels. Height is derived so the hexagon stays regular. */
+  /**
+   * Width in pixels. Height is derived so the hexagon stays regular, and the
+   * hexagon shrinks with its container if the container is narrower than this
+   * (which is how the 380px hero photo survives a 390px phone).
+   */
   size?: number
   /** Image source — only rendered when variant is 'photo'. */
   src?: string
@@ -49,13 +53,19 @@ export function Hex({
     <div
       data-hex=""
       className={cn(
-        'group relative shrink-0 transition-transform duration-200 ease-out hover:scale-[1.03]',
+        // self-start matters: height comes from aspect-ratio, so a stretching
+        // flex parent would otherwise pull the hexagon into a tall slab.
+        // Consumers can still override it (cn merges the align-self group).
+        'group relative shrink-0 self-start transition-transform duration-200 ease-out hover:scale-[1.03]',
         className,
       )}
       style={
         {
           width: size,
-          height: Math.round(size * HEX_RATIO),
+          maxWidth: '100%',
+          // aspect-ratio rather than a fixed height: it keeps √3/2 exactly,
+          // including when max-width has scaled the hexagon down.
+          aspectRatio: `1 / ${HEX_RATIO}`,
           '--hex-ring': ring,
           '--hex-fill': fill,
         } as CSSProperties

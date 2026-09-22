@@ -11,8 +11,10 @@ import { defineConfig, devices } from '@playwright/test'
 const channel = process.env.E2E_CHANNEL ?? 'msedge'
 
 export default defineConfig({
-  testDir: './tests/e2e',
-  // Vite's base path — every page lives under /hive-portal/.
+  // One spec per page, named for the page: tests/home.spec.ts and friends.
+  // Shared helpers live in tests/lib/ and are never collected as tests.
+  testDir: './tests',
+  testMatch: '*.spec.ts',
   outputDir: './test-results',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

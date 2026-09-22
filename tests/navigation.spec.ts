@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { NAV_LABELS, ROUTES, TOKENS, collectPageErrors, goto, shot } from './helpers'
+import { NAV_LABELS, ROUTES, TOKENS, collectPageErrors, goto, shot } from './lib'
 
 test.describe('routing and active nav state', () => {
   for (const route of ROUTES) {
@@ -39,7 +39,7 @@ test.describe('routing and active nav state', () => {
   test('an unknown route redirects home', async ({ page }) => {
     await goto(page, '/definitely-not-a-page')
     await expect(page).toHaveURL(/\/hive-portal\/$/)
-    await expect(page.locator('main')).toContainText('Section 1')
+    await expect(page.locator('main')).toContainText("THIS WEEK'S FOUNDER")
   })
 
   test('footer utility links reach the Space page sections', async ({ page }) => {

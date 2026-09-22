@@ -69,9 +69,51 @@
     @apply py-16 md:py-24;
   }
 
+  /*
+    Full-bleed horizontal scroller whose first card still lines up with the
+    container edge. This cannot be a Tailwind arbitrary value: the calc()
+    contains a "/", which Tailwind reads as the colour-opacity modifier and
+    then drops the whole class — silently, which is how the wins strip
+    shipped with its cards flush to the viewport edge.
+
+    100% (not 100vw) so the maths ignores the scrollbar, exactly like
+    .container-hive's own centring does.
+  */
+  .scroller-gutter {
+    --scroller-gutter: 1.5rem;
+    padding-inline: var(--scroller-gutter);
+    /*
+      scroll-padding is not optional here. scroll-snap-align: start aligns the
+      first card to the SNAPPORT edge, which ignores padding — so the browser
+      silently scrolls past the gutter on load and card 1 sits flush against
+      the viewport edge, exactly as if the padding were never applied. Insetting
+      the snapport by the same amount is what makes the gutter stick.
+    */
+    scroll-padding-inline: var(--scroller-gutter);
+  }
+
+  @media (min-width: 768px) {
+    .scroller-gutter {
+      --scroller-gutter: max(3rem, calc((100% - 1240px) / 2 + 3rem));
+    }
+  }
+
   /* Standard card chrome. */
   .card-hive {
     @apply rounded-2xl border border-border bg-white shadow-sm;
+  }
+}
+
+/* Hero founder photo: a very slow breath in and out. 20s, ease-in-out, so at
+   any given second it reads as still. Keyframes live outside @layer so the
+   animation name is not subject to layer ordering. */
+@keyframes hive-ken-burns {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
   }
 }
 
@@ -90,8 +132,18 @@
     animation-play-state: paused;
   }
 
+  /* Applied to the <Hex variant="photo"> wrapper; the image inside is what moves. */
+  .ken-burns img {
+    animation: hive-ken-burns 20s ease-in-out infinite;
+    will-change: transform;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .marquee-track {
+      animation: none;
+    }
+
+    .ken-burns img {
       animation: none;
     }
   }

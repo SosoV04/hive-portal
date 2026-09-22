@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
-import { TOKENS, goto, shot } from './helpers'
-import { tracks } from '../../src/data/mock/tracks'
+import { TOKENS, goto, shot } from './lib'
+import { tracks } from '../src/data/mock/tracks'
 
 /**
  * tracks.ts is locked content, so the suite asserts against the data module

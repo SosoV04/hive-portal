@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { TOKEN_HEX, TOKENS, goto, shot } from './helpers'
+import { TOKEN_HEX, TOKENS, goto, shot } from './lib'
 
 /**
  * The design system is LOCKED. These tests exist so a later prompt cannot

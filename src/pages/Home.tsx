@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   motion,
   useMotionValue,
@@ -8,44 +8,150 @@ import {
   useSpring,
 } from 'framer-motion'
 import { Bee } from '../components/Bee'
+import { Hero } from '../components/home/Hero'
+import { WinsStrip } from '../components/home/WinsStrip'
+import { NextUp } from '../components/home/NextUp'
+import { BoardPreview } from '../components/home/BoardPreview'
+import { Marquee } from '../components/home/Marquee'
+import { QuickLinks } from '../components/home/QuickLinks'
 
 const BEE_SIZE = 54
 
-const SECTIONS = [
-  { label: 'Section 1', note: 'Hero placeholder', tone: 'bg-black/[0.04]' },
-  { label: 'Section 2', note: 'Wins placeholder', tone: 'bg-black/[0.09]' },
-  { label: 'Section 3', note: 'Events placeholder', tone: 'bg-black/[0.04]' },
-]
+/**
+ * Which side gutter the bee holds over each section.
+ *
+ * Chosen against the real content, not guessed:
+ *  - `wins` is a full-bleed scroller whose cards overflow to the RIGHT, so the
+ *    bee holds the left gutter there.
+ *  - `partners` is an edge-to-edge marquee with no free gutter at all; the bee
+ *    is simply passing through, and the band is ~200px of a ~3000px page.
+ *  - Everything else is container-width (content stops 148px from each edge on
+ *    a 1440 viewport), so both gutters are clear.
+ *
+ * Three side changes across six sections. More than that and the trail reads
+ * as decoration rather than a route.
+ */
+const SECTION_SIDE: Record<string, 'left' | 'right'> = {
+  hero: 'right',
+  wins: 'left',
+  'next-up': 'left',
+  'board-preview': 'right',
+  partners: 'right',
+  // Quick links stays on the RIGHT and the route hooks left only in the final
+  // sweep below the last tile. Crossing at the partners/quick-links seam
+  // instead put the bee in the middle of the page at almost exactly 75%
+  // scroll — one of the three depths the flight path is checked at, and a
+  // place a reader's eye is genuinely mid-page.
+  'quick-links': 'right',
+}
 
 /**
- * Weaving curve from the top-right of section 1 down to the bottom-left of
- * section 3. Built in raw pixels so the SVG viewBox can match the container
- * 1:1 — that keeps the bee from being distorted by non-uniform scaling.
- *
- * Two constraints shape the waypoints:
- *  - The bee sits near a side gutter at each section's midpoint
- *    (y = 0.167 / 0.5 / 0.833) and crosses the middle at the section
- *    boundaries, so the trail avoids wherever centered content will go.
- *  - y increases monotonically, which is what lets us look up a point on the
- *    curve by vertical position (see buildYLookup).
+ * Clearance the bee needs on each side of itself inside a gutter.
+ * Below this the flight path does not render at all — see hasGutter().
  */
-export function buildFlightPath(w: number, h: number) {
-  if (w <= 0 || h <= 0) return ''
-  const x = (f: number) => +(f * w).toFixed(2)
-  const y = (f: number) => +(f * h).toFixed(2)
-  return [
-    `M ${x(0.88)} ${y(0.05)}`,
-    // Section 1: hold the right gutter, then cross at the first boundary.
-    `C ${x(0.92)} ${y(0.15)}, ${x(0.8)} ${y(0.26)}, ${x(0.5)} ${y(0.33)}`,
-    // Section 2: settle into the left gutter.
-    `C ${x(0.28)} ${y(0.385)}, ${x(0.14)} ${y(0.42)}, ${x(0.14)} ${y(0.5)}`,
-    // Cross back at the second boundary.
-    `C ${x(0.14)} ${y(0.57)}, ${x(0.3)} ${y(0.61)}, ${x(0.45)} ${y(0.65)}`,
-    // Section 3: back out to the right gutter.
-    `C ${x(0.62)} ${y(0.7)}, ${x(0.8)} ${y(0.75)}, ${x(0.8)} ${y(0.83)}`,
-    // Final sweep to bottom-left, below the third section's content.
-    `C ${x(0.8)} ${y(0.9)}, ${x(0.4)} ${y(0.945)}, ${x(0.12)} ${y(0.95)}`,
-  ].join(' ')
+const BEE_CLEARANCE = 6
+
+/**
+ * How far into the blank band between two sections the bee holds its gutter
+ * before swinging across. At 0 the swing is spread over the whole band, which
+ * looks lazy and leaves the bee near the middle of the page for a noticeable
+ * stretch of scrolling; at 0.5 it would have no room to swing at all. 0.3
+ * keeps the crossing to the middle ~40% of the band — fast, still smooth, and
+ * entirely inside empty space.
+ */
+const PAD_BITE = 0.3
+
+interface SectionBox {
+  id: string
+  /** Top of this section's actual content, i.e. inside its vertical padding. */
+  contentTop: number
+  contentBottom: number
+}
+
+interface Layout {
+  w: number
+  h: number
+  /** Distance from the page edge to the first pixel of container content. */
+  inset: number
+  sections: SectionBox[]
+}
+
+interface Point {
+  x: number
+  y: number
+}
+
+/** Centre of the free gutter between the page edge and the container. */
+function gutterX(layout: Layout, side: 'left' | 'right') {
+  const x = layout.inset / 2
+  return side === 'left' ? x : layout.w - x
+}
+
+/** Is there room for a bee out there at all? */
+function hasGutter(layout: Layout) {
+  return layout.inset >= BEE_SIZE + BEE_CLEARANCE * 2
+}
+
+/**
+ * Waypoints: hold a gutter for the exact vertical span of each section's
+ * CONTENT, and change sides in the blank band between one section's last
+ * pixel of content and the next section's first.
+ *
+ * This is measured, not guessed. Anchoring at fractions of section height —
+ * what prompt 1's fixed waypoints amounted to — put the swing over the hero's
+ * copy column and through the middle of the events grid once real content
+ * landed, because a section's padding is not a constant fraction of its
+ * height. Padding bands are the only reliably empty horizontal strips on the
+ * page, so they are where the bee crosses.
+ */
+function flightPathWaypoints(layout: Layout): Point[] {
+  const { sections, h } = layout
+  if (layout.w <= 0 || h <= 0 || sections.length === 0) return []
+
+  const points: Point[] = []
+  for (const [i, section] of sections.entries()) {
+    const x = gutterX(layout, SECTION_SIDE[section.id] ?? 'right')
+    const above = sections[i - 1]
+    const below = sections[i + 1]
+    // Reach up and down into the neighbouring padding bands, so the swing is
+    // confined to the middle of each band rather than spread across all of it.
+    const lead = above ? (section.contentTop - above.contentBottom) * PAD_BITE : 0
+    const trail = below ? (below.contentTop - section.contentBottom) * PAD_BITE : 0
+    points.push({ x, y: section.contentTop - Math.max(0, lead) })
+    points.push({ x, y: section.contentBottom + Math.max(0, trail) })
+  }
+
+  // Enter above the first headline and leave below the last tile, so the route
+  // reads as arriving and departing rather than starting mid-air.
+  const first = points[0]
+  const last = points[points.length - 1]
+  points.unshift({ x: first.x, y: Math.max(8, first.y - 48) })
+  // The route always ends bottom-left, whichever gutter the last section used.
+  points.push({ x: gutterX(layout, 'left'), y: Math.min(h - 8, last.y + 48) })
+
+  return points
+}
+
+/**
+ * A cubic spline through the waypoints whose control points differ from their
+ * anchors only vertically. That guarantees y increases monotonically along the
+ * curve, which is what lets buildYLookup index the path by vertical position.
+ */
+function buildFlightPath(layout: Layout) {
+  const points = flightPathWaypoints(layout)
+  if (points.length < 2) return ''
+
+  const n = (v: number) => +v.toFixed(2)
+  const segments = [`M ${n(points[0].x)} ${n(points[0].y)}`]
+  for (let i = 1; i < points.length; i++) {
+    const from = points[i - 1]
+    const to = points[i]
+    const lift = (to.y - from.y) * 0.45
+    segments.push(
+      `C ${n(from.x)} ${n(from.y + lift)}, ${n(to.x)} ${n(to.y - lift)}, ${n(to.x)} ${n(to.y)}`,
+    )
+  }
+  return segments.join(' ')
 }
 
 interface YLookup {
@@ -58,7 +164,7 @@ interface YLookup {
  * Sample the curve once so we can convert a vertical position into a distance
  * along it cheaply on every scroll frame.
  */
-function buildYLookup(path: SVGPathElement, samples = 240): YLookup {
+function buildYLookup(path: SVGPathElement, samples = 320): YLookup {
   const total = path.getTotalLength()
   const lengths: number[] = []
   const ys: number[] = []
@@ -90,30 +196,70 @@ function lengthAtY(lut: YLookup, targetY: number) {
 /**
  * One of the three sanctioned bee moments: the Home scroll flight-path.
  *
- * The bee is positioned by VERTICAL progress rather than by distance along the
- * curve. Arc length is distributed unevenly (the horizontal sweeps are long
- * but barely descend), so driving off raw arc length lets the bee outrun the
- * scroll and leave the viewport. Mapping through y keeps it pinned to the
- * reader, and the trail is drawn to exactly the bee's own distance so the two
- * can never drift apart.
+ * Two things here are load-bearing:
+ *
+ * 1. The curve is built from the MEASURED position of each section, not from
+ *    fixed fractions of page height. With six sections of wildly different
+ *    heights (an 88vh hero, a ~200px marquee) a fraction-based waypoint lands
+ *    wherever it lands — which on this build meant straight through the middle
+ *    of the events grid.
+ * 2. The bee is positioned by VERTICAL progress rather than by distance along
+ *    the curve. Arc length is distributed unevenly (the horizontal sweeps are
+ *    long but barely descend), so driving off raw arc length lets the bee
+ *    outrun the scroll and leave the viewport.
  */
 export default function Home() {
   const wrapRef = useRef<HTMLDivElement>(null)
   const pathRef = useRef<SVGPathElement>(null)
   const lutRef = useRef<YLookup | null>(null)
-  const [dims, setDims] = useState({ w: 0, h: 0 })
+  const [layout, setLayout] = useState<Layout>({ w: 0, h: 0, inset: 0, sections: [] })
   const reduceMotion = useReducedMotion()
+
+  const measure = useCallback(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const wrapTop = el.getBoundingClientRect().top
+
+    // The gutter is whatever .container-hive leaves free, read off the DOM
+    // rather than re-derived from the breakpoint maths — one source of truth.
+    const container = el.querySelector<HTMLElement>('.container-hive')
+    const inset = container
+      ? container.getBoundingClientRect().left +
+        parseFloat(getComputedStyle(container).paddingLeft)
+      : 0
+
+    const sections = [...el.querySelectorAll<HTMLElement>('[data-section]')].map((node) => {
+      const children = [...node.children] as HTMLElement[]
+      const rects = children.map((child) => child.getBoundingClientRect())
+      const top = rects.length ? Math.min(...rects.map((r) => r.top)) : node.getBoundingClientRect().top
+      const bottom = rects.length
+        ? Math.max(...rects.map((r) => r.bottom))
+        : node.getBoundingClientRect().bottom
+      return {
+        id: node.dataset.section ?? '',
+        contentTop: Math.round(top - wrapTop),
+        contentBottom: Math.round(bottom - wrapTop),
+      }
+    })
+
+    setLayout({
+      w: Math.round(el.clientWidth),
+      h: Math.round(el.clientHeight),
+      inset: Math.round(inset),
+      sections,
+    })
+  }, [])
 
   useEffect(() => {
     const el = wrapRef.current
     if (!el) return
-    const observer = new ResizeObserver(([entry]) => {
-      const { width, height } = entry.contentRect
-      setDims({ w: Math.round(width), h: Math.round(height) })
-    })
+    // Observe the sections too: a wrapped headline or a late webfont changes
+    // one section's height without changing the wrapper's width.
+    const observer = new ResizeObserver(measure)
     observer.observe(el)
+    el.querySelectorAll('[data-section]').forEach((node) => observer.observe(node))
     return () => observer.disconnect()
-  }, [])
+  }, [measure])
 
   const { scrollYProgress } = useScroll({
     target: wrapRef,
@@ -127,44 +273,48 @@ export default function Home() {
   const beeRotate = useMotionValue(0)
   const trail = useMotionValue(0)
 
-  const d = buildFlightPath(dims.w, dims.h)
+  const d = hasGutter(layout) ? buildFlightPath(layout) : ''
 
-  function placeBee(p: number) {
-    const path = pathRef.current
-    const lut = lutRef.current
-    if (!path || !lut || !lut.total) return
+  const placeBee = useCallback(
+    (p: number) => {
+      const path = pathRef.current
+      const lut = lutRef.current
+      if (!path || !lut || !lut.total) return
 
-    const clamped = Math.min(Math.max(p, 0), 1)
-    const targetY = lut.ys[0] + clamped * (lut.ys[lut.ys.length - 1] - lut.ys[0])
-    const at = lengthAtY(lut, targetY)
+      const clamped = Math.min(Math.max(p, 0), 1)
+      const targetY = lut.ys[0] + clamped * (lut.ys[lut.ys.length - 1] - lut.ys[0])
+      const at = lengthAtY(lut, targetY)
 
-    const point = path.getPointAtLength(at)
-    const ahead = path.getPointAtLength(Math.min(at + 1, lut.total))
-    beeX.set(point.x)
-    beeY.set(point.y)
-    // The bee artwork points up, so its heading is the tangent plus 90 degrees.
-    beeRotate.set((Math.atan2(ahead.y - point.y, ahead.x - point.x) * 180) / Math.PI + 90)
-    trail.set(at / lut.total)
-  }
+      const point = path.getPointAtLength(at)
+      const ahead = path.getPointAtLength(Math.min(at + 1, lut.total))
+      beeX.set(point.x)
+      beeY.set(point.y)
+      // The bee artwork points up, so its heading is the tangent plus 90 degrees.
+      beeRotate.set((Math.atan2(ahead.y - point.y, ahead.x - point.x) * 180) / Math.PI + 90)
+      trail.set(at / lut.total)
+    },
+    [beeRotate, beeX, beeY, trail],
+  )
 
   useMotionValueEvent(progress, 'change', placeBee)
 
-  // Re-sample and re-place whenever the curve geometry changes (resize).
+  // Re-sample and re-place whenever the curve geometry changes (resize, or a
+  // section growing as its content lands).
   useEffect(() => {
     const path = pathRef.current
     if (!path || !d) return
     lutRef.current = buildYLookup(path)
     placeBee(progress.get())
-  }, [d]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [d, placeBee, progress])
 
   return (
     <div ref={wrapRef} className="relative">
-      {dims.w > 0 ? (
+      {d ? (
         <svg
           className="pointer-events-none absolute inset-0 z-10"
-          width={dims.w}
-          height={dims.h}
-          viewBox={`0 0 ${dims.w} ${dims.h}`}
+          width={layout.w}
+          height={layout.h}
+          viewBox={`0 0 ${layout.w} ${layout.h}`}
           fill="none"
           aria-hidden="true"
           data-flight-path=""
@@ -195,17 +345,12 @@ export default function Home() {
         </svg>
       ) : null}
 
-      {SECTIONS.map((section) => (
-        <section
-          key={section.label}
-          className={`flex h-screen flex-col items-center justify-center ${section.tone}`}
-        >
-          <h2 className="font-display text-display-lg font-semibold opsz-display">
-            {section.label}
-          </h2>
-          <p className="mt-3 text-body-lg text-ink">{section.note}</p>
-        </section>
-      ))}
+      <Hero />
+      <WinsStrip />
+      <NextUp />
+      <BoardPreview />
+      <Marquee />
+      <QuickLinks />
     </div>
   )
 }

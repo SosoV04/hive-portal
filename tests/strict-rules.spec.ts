@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { ROUTES, goto } from './helpers'
+import { ROUTES, goto } from './lib'
 
 /**
  * The hex and bee placement rules are stated as constraints, not suggestions.

@@ -2,15 +2,16 @@ import { Link } from 'react-router-dom'
 
 // No bees, no hexagons down here.
 
-// TODO: replace the '#' placeholders with real URLs — see README.
 const PROGRAM_LINKS = [
-  { label: 'BuildPurdue', href: '#' },
-  { label: 'Anvil', href: '#' },
-  { label: 'Purdue Innovates', href: '#' },
+  { label: 'BuildPurdue', href: 'https://www.buildpurdue.org/' },
+  // TODO: confirm final Anvil URL — this Framer subdomain looks temporary.
+  { label: 'Anvil', href: 'https://various-windows-489781-de8bd8574.framer.app/' },
+  { label: 'Purdue Innovates', href: 'https://purdueinnovates.org/incubator/' },
 ]
 
 const FOLLOW_LINKS = [
-  { label: 'LinkedIn', href: '#' },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/purdue-hive/' },
+  // TODO: confirm HIVE Instagram handle
   { label: 'Instagram', href: '#' },
 ]
 

@@ -21,11 +21,14 @@ const SECTIONS = [
 export default function Space() {
   return (
     <div className="container-hive section-rhythm">
-      <SectionEyebrow>The space</SectionEyebrow>
-      <h1 className="mt-3 font-display text-display-lg font-semibold opsz-display">Space</h1>
-      <p className="mt-4 max-w-xl text-body-lg text-ink">
-        Placeholder shell. Guidelines, supplies and feedback all live on this page.
-      </p>
+      {/* id="space-info" is the Home quick-link target for the page overview. */}
+      <div id="space-info" className="scroll-mt-28">
+        <SectionEyebrow>The space</SectionEyebrow>
+        <h1 className="mt-3 font-display text-display-lg font-semibold opsz-display">Space</h1>
+        <p className="mt-4 max-w-xl text-body-lg text-ink">
+          Placeholder shell. Guidelines, supplies and feedback all live on this page.
+        </p>
+      </div>
 
       {SECTIONS.map((section) => (
         <section key={section.id} id={section.id} className="mt-16 scroll-mt-28 border-t border-border pt-8">

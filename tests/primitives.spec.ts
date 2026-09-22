@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { PROBE_URL, TOKENS, shot } from './helpers'
+import { PROBE_URL, TOKENS, shot } from './lib'
 
 const SIZES = [28, 44, 96, 140] as const
 const VARIANTS = ['filled', 'outline', 'photo'] as const

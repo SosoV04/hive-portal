@@ -28,4 +28,6 @@ dist-ssr
 /playwright-report
 /blob-report
 /playwright/.cache
-/tests/e2e/screenshots
+
+# Screenshots under tests/__screenshots__ are committed on purpose — they are
+# the visual baseline each prompt checks the next one against.
