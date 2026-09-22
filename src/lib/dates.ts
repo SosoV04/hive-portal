@@ -32,6 +32,19 @@ export function daysAgo(days: number, hour = 9, minute = 0) {
 }
 
 /**
+ * Today at `hour`:`minute`, but never in the future — if that time has not
+ * come round yet, the stamp lands half a minute ago instead.
+ *
+ * Board posts stamped "today" need both halves of that: inside the Board's
+ * Today filter whenever the page is opened, and never rendered as "in 5
+ * hours", which is what a fixed morning hour does to anyone reading at dawn.
+ */
+export function todayAt(hour: number, minute = 0) {
+  const wanted = new Date(inDays(0, hour, minute)).getTime()
+  return new Date(Math.min(wanted, Date.now() - 30_000)).toISOString()
+}
+
+/**
  * The next calendar date whose weekday matches `weekday` (0 = Sunday), at
  * least `after` days out. Keeps "Thursday dinner" on a Thursday forever.
  */
@@ -59,6 +72,25 @@ export function timeAgo(iso: string, now = Date.now()) {
     if (magnitude < limit) return relative.format(Math.round(delta / ms), unit)
   }
   return relative.format(Math.round(delta / (7 * DAY)), 'week')
+}
+
+/**
+ * Compact relative stamp for Board post cards: "2h ago", "yesterday", "3d ago".
+ *
+ * Separate from timeAgo() on purpose — the Board's timestamp sits at the far
+ * right of a card's top row, where "3 days ago" wraps and "3d ago" does not.
+ * Future timestamps read as "just now": mock offsets are taken from module
+ * load, so a post stamped for later today is briefly ahead of the clock.
+ */
+export function timeAgoShort(iso: string, now = Date.now()) {
+  const delta = now - new Date(iso).getTime()
+  if (delta < 60_000) return 'just now'
+  if (delta < 3_600_000) return `${Math.round(delta / 60_000)}m ago`
+  if (delta < 86_400_000) return `${Math.round(delta / 3_600_000)}h ago`
+  const days = Math.round(delta / DAY)
+  if (days === 1) return 'yesterday'
+  if (days < 30) return `${days}d ago`
+  return `${Math.round(days / 30)}mo ago`
 }
 
 const DAY_NAME = new Intl.DateTimeFormat('en-US', { weekday: 'short' })

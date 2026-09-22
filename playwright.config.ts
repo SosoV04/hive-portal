@@ -22,6 +22,12 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 1,
   workers: process.env.CI ? 1 : undefined,
   reporter: [['list'], ['html', { open: 'never', outputFolder: './playwright-report' }]],
+  /*
+    toHaveScreenshot baselines live beside the run-every-time captures in
+    tests/__screenshots__, so the Board spec can diff the Home board preview
+    against the image prompt 2 committed instead of a snapshot dir of its own.
+  */
+  snapshotPathTemplate: '{testDir}/__screenshots__/{arg}{ext}',
 
   use: {
     baseURL: 'http://localhost:5173/hive-portal/',

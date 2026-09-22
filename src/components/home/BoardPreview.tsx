@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Reveal } from '../Reveal'
 import { SectionEyebrow } from '../SectionEyebrow'
-import { BoardPostCard } from '../shared/BoardPostCard'
+import { PostCard } from '../board/PostCard'
 import { ColumnDot } from '../shared/ColumnDot'
 import { BOARD_COLUMNS, COLUMN_LABELS, postsInColumn } from '../../data/mock/board-posts'
 
@@ -42,7 +42,7 @@ export function BoardPreview() {
                     {COLUMN_LABELS[column]}
                   </p>
                   <div className="mt-5">
-                    <BoardPostCard post={newest} clamp />
+                    <PostCard post={newest} variant="preview" />
                   </div>
                 </Link>
               </Reveal>

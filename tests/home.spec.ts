@@ -291,7 +291,9 @@ test.describe('Home — board preview', () => {
       const inColumn = boardPosts
         .filter((p) => p.column === column)
         .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      expect(inColumn.length, `${column} should have four posts in the mock data`).toBe(4)
+      // Prompt 3 grew the mock set to sixteen posts, unevenly spread across
+      // the columns; the preview still takes exactly the newest one.
+      expect(inColumn.length, `${column} should have posts in the mock data`).toBeGreaterThanOrEqual(4)
 
       const rendered = page.locator(`[data-board-column="${column}"] [data-board-post]`)
       await expect(rendered, `${column} shows one post`).toHaveCount(1)

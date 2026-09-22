@@ -9,6 +9,12 @@ export interface EmptyStateProps {
   message?: string
   /** Optional call to action. */
   action?: ReactNode
+  /**
+   * Small version for a filtered-out Board column: a 32px bee and one line of
+   * body-sm, no display heading and no CTA — the column header already carries
+   * the add button, so an empty column should not ask twice.
+   */
+  compact?: boolean
   className?: string
 }
 
@@ -17,8 +23,24 @@ export function EmptyState({
   title = 'Nothing here yet',
   message = 'The hive is quiet.',
   action,
+  compact = false,
   className,
 }: EmptyStateProps) {
+  if (compact) {
+    return (
+      <div
+        data-empty-state=""
+        className={cn(
+          'flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-gold-soft/40 px-4 py-10 text-center',
+          className,
+        )}
+      >
+        <Bee size={32} />
+        <p className="text-body-sm text-ink/60">{title}</p>
+      </div>
+    )
+  }
+
   return (
     <div
       data-empty-state=""

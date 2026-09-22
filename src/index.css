@@ -127,6 +127,20 @@
   }
 }
 
+/* A post just added from the Board's modal: slides down into the top of its
+   column and fades up. 400ms, once. Keyframes live outside @layer so the
+   animation name is not subject to layer ordering. */
+@keyframes hive-post-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @layer utilities {
   /* Fraunces optical-size helpers for hero-scale copy. */
   .opsz-display {
@@ -148,6 +162,29 @@
     will-change: transform;
   }
 
+  /* Board: the card for a post the viewer just submitted. */
+  .post-enter {
+    animation: hive-post-in 400ms var(--ease-hive) both;
+  }
+
+  /*
+    Board Wall tile lift. A hex-clipped element cannot cast a box-shadow —
+    clip-path cuts the shadow off with the box — so the shadow is a
+    drop-shadow filter on the tile itself, which follows the clipped silhouette.
+  */
+  .wall-tile {
+    transition:
+      transform 200ms var(--ease-hive),
+      filter 200ms var(--ease-hive);
+  }
+
+  .wall-tile:hover,
+  .wall-tile:focus-visible {
+    transform: scale(1.04);
+    filter: drop-shadow(0 8px 16px rgb(15 15 15 / 18%));
+    z-index: 10;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .marquee-track {
       animation: none;
@@ -155,6 +192,20 @@
 
     .ken-burns img {
       animation: none;
+    }
+
+    .post-enter {
+      animation: none;
+    }
+
+    /* Colour still responds on hover; the scale does not. */
+    .wall-tile {
+      transition: none;
+    }
+
+    .wall-tile:hover,
+    .wall-tile:focus-visible {
+      transform: none;
     }
   }
 }

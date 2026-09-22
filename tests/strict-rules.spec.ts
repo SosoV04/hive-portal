@@ -44,12 +44,23 @@ test.describe('strict placement rules', () => {
     await expect(page.locator('[data-flight-path] [data-bee]')).toHaveCount(1)
   })
 
-  test('the board empty state carries the bee and the house phrase', async ({ page }) => {
+  /*
+    The Board's empty state moved with prompt 3: the page now opens full of
+    posts, and the bee appears per column once a filter empties one. The house
+    phrase went with it — an emptied column says "Nothing here yet." and
+    nothing else, because its header already carries the add button.
+  */
+  test('the board grows its empty state when a filter empties a column', async ({ page }) => {
     await goto(page, '/board')
-    const empty = page.locator('[data-empty-state]')
+    await expect(page.locator('[data-empty-state]')).toHaveCount(0)
+
+    await page.click('[data-filter-trigger="timeframe"]')
+    await page.click('[data-timeframe-option="today"]')
+
+    const empty = page.locator('[data-board-column="milestones"] [data-empty-state]')
     await expect(empty).toHaveCount(1)
     await expect(empty.locator('[data-bee]')).toHaveCount(1)
-    await expect(empty).toContainText('The hive is quiet')
+    await expect(empty).toContainText('Nothing here yet.')
   })
 
   test('an unknown track shows the bee empty state', async ({ page }) => {
